@@ -1,0 +1,26 @@
+{
+    "name": "Hack Nexus",
+    "short_name": "Hack Nexus",
+    "description": "Official site for Hack Nexus",
+    "icons": [
+        {
+            "src": "/favicon.ico",
+            "sizes": "64x64 32x32 24x24 16x16",
+            "type": "image/x-icon"
+        }
+    ],
+    "theme_color": "#ffffff",
+    "background_color": "#ffffff",
+    "display": "standalone",
+    "orientation": "portrait-primary",
+    "start_url": "/",
+    "scope": "/",
+    "dir": "auto",
+    "lang": "en-US",
+    "prefer_related_applications": false,
+    "related_applications": [],
+    "serviceworker": {
+        "src": "/sw.js",
+        "scope": "/"
+    }
+}

@@ -1,0 +1,547 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-1.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model SiteSettings {
+  id                      String   @id @default(cuid())
+  siteName                String
+  siteDescription         String
+  siteLogo                String
+  siteFavicon             String
+  siteTheme               String
+  siteLanguage            String
+  siteBotEnabled          Boolean  @default(false)
+  siteAdminUserEmails     String[]
+  siteModeratorUserEmails String[]
+  siteRegistrationEnabled Boolean  @default(false)
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String?   @unique
+  password      String? // hashed password for credentials auth
+  username      String?   @unique
+  name          String?
+  image         String?
+  emailVerified DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Enhanced profile fields
+  bio        String?
+  location   String?
+  website    String?
+  githubUrl  String?
+  twitterUrl String?
+  skills     String[] // Array of skills/technologies
+  joinedAt   DateTime @default(now())
+
+  // Role/permission system
+  role         Role      @default(MEMBER)
+  isActive     Boolean   @default(true)
+  isBanned     Boolean   @default(false)
+  bannedAt     DateTime?
+  bannedReason String?
+
+  // Activity tracking
+  lastLoginAt  DateTime?
+  profileViews Int       @default(0)
+  lastSeenAt   DateTime?
+
+  // Discord bot access (only if Discord linked)
+  discordId    String? @unique // Discord user ID for bot dashboard access
+  discordTag   String? // Discord username for display
+  canAccessBot Boolean @default(false) // Permission for bot dashboard
+
+  // Relations
+  accounts             Account[]
+  sessions             Session[]
+  newsPosts            NewsPost[]
+  events               Event[]
+  achievements         UserAchievement[]
+  profileViewsGiven    ProfileView[]     @relation("ProfileViewer")
+  profileViewsReceived ProfileView[]     @relation("ProfileOwner")
+
+  EventParticipant EventParticipant[]
+
+  posts            Post[]
+  comments         Comment[]
+  postLikes        PostLike[]
+  bookmarks        Bookmark[]
+  postShares       PostShare[]
+  postReports      PostReport[]
+  postRevisions    PostRevision[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  // Account linking enhancement
+  linkedAt   DateTime @default(now())
+  isVerified Boolean  @default(false)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// Enhanced NewsPost model
+model NewsPost {
+  id          String      @id @default(cuid())
+  title       String
+  content     String
+  excerpt     String? // Short description
+  published   Boolean     @default(false)
+  publishedAt DateTime?
+  tags        String[] // Array of tags
+  featured    Boolean     @default(false)
+  viewCount   Int         @default(0)
+  order       Int         @default(0)
+  contentType ContentType @default(MARKDOWN)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  authorId    String
+  author      User        @relation(fields: [authorId], references: [id])
+
+  @@index([authorId])
+  @@index([published])
+  @@index([featured])
+  @@index([order])
+}
+
+// Community Events/Challenges
+model Event {
+  id               String    @id @default(cuid())
+  title            String
+  description      String
+  excerpt          String?
+  startDate        DateTime
+  endDate          DateTime?
+  eventType        EventType @default(GENERAL)
+  isActive         Boolean   @default(true)
+  maxParticipants  Int?
+  participantCount Int       @default(0)
+  prizes           String[] // Array of prizes
+  rules            String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  createdBy        String
+  creator          User      @relation(fields: [createdBy], references: [id])
+
+  participants EventParticipant[]
+
+  @@index([createdBy])
+  @@index([startDate])
+  @@index([eventType])
+}
+
+model EventParticipant {
+  id       String            @id @default(cuid())
+  eventId  String
+  userId   String
+  joinedAt DateTime          @default(now())
+  status   ParticipantStatus @default(ACTIVE)
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+  @@index([eventId])
+  @@index([userId])
+}
+
+// Achievement system
+model Achievement {
+  id          String              @id @default(cuid())
+  name        String              @unique
+  description String
+  iconUrl     String?
+  category    AchievementCategory @default(GENERAL)
+  points      Int                 @default(0)
+  isActive    Boolean             @default(true)
+  createdAt   DateTime            @default(now())
+
+  userAchievements UserAchievement[]
+
+  @@index([category])
+}
+
+model UserAchievement {
+  id            String   @id @default(cuid())
+  userId        String
+  achievementId String
+  earnedAt      DateTime @default(now())
+  progress      Int      @default(100) // Percentage complete
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, achievementId])
+  @@index([userId])
+  @@index([achievementId])
+}
+
+// Profile view tracking
+model ProfileView {
+  id        String   @id @default(cuid())
+  viewerId  String? // null for anonymous views
+  profileId String
+  viewedAt  DateTime @default(now())
+  ipAddress String? // For anonymous tracking
+  userAgent String?
+
+  viewer  User? @relation("ProfileViewer", fields: [viewerId], references: [id], onDelete: SetNull)
+  profile User  @relation("ProfileOwner", fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@index([viewerId])
+  @@index([viewedAt])
+}
+
+// New model for dynamic categorization of posts (write-ups, announcements, CVEs, etc.)
+model PostType {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  posts       Post[]
+}
+
+model Post {
+  id      String  @id @default(cuid())
+  title   String
+  slug    String  @unique
+  content String  @db.Text // Full post content in markdown/HTML
+  excerpt String? @db.Text // Short description/summary
+
+  // Publishing & Status
+  status      PostStatus @default(DRAFT)
+  publishedAt DateTime?
+  scheduledAt DateTime? // For scheduled publishing
+
+  // Metadata
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Author information
+  authorId String
+  author   User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  // Content categorization
+  category PostCategory
+  tags     String[] // Array of tags for filtering
+
+  // Relation to dynamic post type
+  typeId String?
+  type   PostType? @relation(fields: [typeId], references: [id], onDelete: SetNull)
+
+  // Security-specific fields
+  vulnerabilityType String? // e.g., "XSS", "SQL Injection", "Buffer Overflow"
+  severity          Severity? // Critical, High, Medium, Low
+  cveId             String? // CVE identifier if applicable
+  affectedSystems   String[] // Systems/software affected
+  patchStatus       PatchStatus? // Available, Pending, None
+
+  // Technical details
+  exploitCode String?  @db.Text // Code examples/proof of concept
+  remediation String?  @db.Text // Fix/mitigation steps
+  references  String[] // External links/references
+
+  // Engagement metrics
+  viewCount    Int @default(0)
+  likeCount    Int @default(0)
+  commentCount Int @default(0)
+  shareCount   Int @default(0)
+
+  // SEO & Discovery
+  metaTitle       String?
+  metaDescription String?
+  featuredImage   String? // URL to featured image
+  imageAlt        String? // Alt text for featured image
+
+  // Content flags
+  isVerified    Boolean @default(false) // Verified by moderators
+  isFeatured    Boolean @default(false) // Featured content
+  isPinned      Boolean @default(false) // Pinned posts
+  allowComments Boolean @default(true)
+  isArchived    Boolean @default(false)
+
+  // Approval status
+  approved Boolean @default(false)
+
+  // Moderation
+  reportCount     Int     @default(0)
+  isReported      Boolean @default(false)
+  moderationNotes String? @db.Text
+
+  // Analytics tracking
+  lastViewedAt  DateTime?
+  peakViewsDate DateTime?
+  avgTimeOnPage Float? // Average time spent reading (seconds)
+
+  // Version control (for tracking edits)
+  version    Int     @default(1)
+  editReason String? // Reason for last edit
+
+  // Relations
+  comments  Comment[]
+  likes     PostLike[]
+  bookmarks Bookmark[]
+  shares    PostShare[]
+  reports   PostReport[]
+  revisions PostRevision[]
+
+  @@index([authorId])
+  @@index([status])
+  @@index([category])
+  @@index([publishedAt])
+  @@index([createdAt])
+  @@index([vulnerabilityType])
+  @@index([severity])
+  @@index([viewCount])
+  @@index([likeCount])
+  @@index([typeId])
+  @@map("posts")
+}
+
+// Supporting models for relations
+model Comment {
+  id        String   @id @default(cuid())
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  postId   String
+  post     Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorId String
+  author   User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  // Nested comments
+  parentId String?
+  parent   Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
+  replies  Comment[] @relation("CommentReplies")
+
+  // Moderation
+  isDeleted Boolean @default(false)
+  isEdited  Boolean @default(false)
+
+  @@index([postId])
+  @@index([authorId])
+  @@index([createdAt])
+  @@map("comments")
+}
+
+model PostLike {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  // Relations
+  postId String
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@index([postId])
+  @@index([userId])
+  @@map("post_likes")
+}
+
+model Bookmark {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  // Relations
+  postId String
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@index([postId])
+  @@index([userId])
+  @@map("bookmarks")
+}
+
+model PostShare {
+  id        String   @id @default(cuid())
+  platform  String // "twitter", "linkedin", "discord", etc.
+  createdAt DateTime @default(now())
+
+  // Relations
+  postId String
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+  @@index([userId])
+  @@map("post_shares")
+}
+
+model PostReport {
+  id        String       @id @default(cuid())
+  reason    ReportReason
+  details   String?      @db.Text
+  createdAt DateTime     @default(now())
+  resolved  Boolean      @default(false)
+
+  // Relations
+  postId     String
+  post       Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  reporterId String
+  reporter   User   @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+  @@index([reporterId])
+  @@map("post_reports")
+}
+
+model PostRevision {
+  id           String   @id @default(cuid())
+  title        String
+  content      String   @db.Text
+  changeReason String?  @db.Text
+  createdAt    DateTime @default(now())
+
+  // Relations
+  postId   String
+  post     Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorId String
+  author   User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+  @@index([createdAt])
+  @@map("post_revisions")
+}
+
+// Enums
+enum Role {
+  ADMIN
+  MODERATOR
+  MEMBER
+  GUEST
+}
+
+enum ContentType {
+  MARKDOWN
+  HTML
+  RICH_TEXT
+}
+
+enum EventType {
+  GENERAL
+  CTF
+  CHALLENGE
+  WORKSHOP
+  COMPETITION
+  MEETUP
+}
+
+enum ParticipantStatus {
+  ACTIVE
+  WITHDRAWN
+  COMPLETED
+  DISQUALIFIED
+}
+
+enum AchievementCategory {
+  GENERAL
+  PARTICIPATION
+  SKILL
+  CONTRIBUTION
+  MILESTONE
+  SPECIAL
+}
+
+enum ReportReason {
+  SPAM
+  INAPPROPRIATE_CONTENT
+  MISINFORMATION
+  COPYRIGHT_VIOLATION
+  HARASSMENT
+  ILLEGAL_CONTENT
+  MALICIOUS_CODE
+  OTHER
+}
+
+enum PostStatus {
+  DRAFT
+  PUBLISHED
+  UNPUBLISHED
+  SCHEDULED
+  ARCHIVED
+  DELETED
+}
+
+enum PostCategory {
+  VULNERABILITY_RESEARCH
+  EXPLOIT_DEVELOPMENT
+  MALWARE_ANALYSIS
+  PENETRATION_TESTING
+  SECURITY_TOOLS
+  INCIDENT_RESPONSE
+  THREAT_INTELLIGENCE
+  REVERSE_ENGINEERING
+  CRYPTOGRAPHY
+  NETWORK_SECURITY
+  WEB_SECURITY
+  MOBILE_SECURITY
+  CLOUD_SECURITY
+  TUTORIAL
+  NEWS
+  OPINION
+  CASE_STUDY
+  OTHER
+}
+
+enum Severity {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+  INFORMATIONAL
+}
+
+enum PatchStatus {
+  AVAILABLE
+  PENDING
+  PARTIAL
+  NONE
+  UNKNOWN
+}

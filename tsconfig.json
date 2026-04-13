@@ -1,0 +1,39 @@
+{
+    "compilerOptions": {
+        "target": "ES2021",
+        "lib": ["dom", "dom.iterable", "esnext"],
+        "allowJs": true,
+        "skipLibCheck": true,
+        "forceConsistentCasingInFileNames": true,
+        "strict": true,
+        "noEmit": true,
+        "esModuleInterop": true,
+        "module": "ESNext",
+        "moduleResolution": "Bundler",
+        "resolveJsonModule": true,
+        "isolatedModules": true,
+        "jsx": "preserve",
+        "incremental": true,
+        "emitDecoratorMetadata": true,
+        "experimentalDecorators": true,
+        "importHelpers": false,
+        "plugins": [
+            {
+                "name": "next"
+            }
+        ],
+        "strictNullChecks": true,
+        "paths": {
+            "@/*": ["./*"],
+            "@components/*": ["./components/*"],
+            "@api/*": ["./app/api/*"],
+            "@nextauth/*": ["./app/api/auth/[...nextauth]/*"],
+            "@ui/*": ["./components/ui/*"],
+            "@types/*": ["./types/*"],
+            "@lib/*": ["./lib/*"],
+            "@/hooks/*": ["./hooks/*"]
+        }
+    },
+    "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "eslint.config.cjs"],
+    "exclude": ["node_modules"]
+}
